@@ -20,6 +20,8 @@ def main(config):
     # Load SNIP params
     with open("/home/xulei/shayan/SR/DDSR/hyperparameters/params.pkl", 'rb') as p:
         params = pickle.load(p)
+    
+    params.batch_size = config.loader.global_batch_size
         
     if (config.checkpointing.resume_from_ckpt
         and config.checkpointing.resume_ckpt_path is not None

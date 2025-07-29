@@ -128,7 +128,7 @@ class Diffusion(L.LightningModule):
     self.parameterization = self.config.parameterization
     if self.config.backbone == 'dit':
       self.backbone = models.dit.DIT(
-        self.config, vocab_size=self.vocab_size)
+        self.config, vocab_size=self.vocab_size, text_embed_dim=512)
     # elif self.config.backbone == 'dimamba':
     #   self.backbone = models.dimamba.DiMamba(
     #     self.config,

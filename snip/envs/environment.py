@@ -34,6 +34,7 @@ from .utils import *
 from ..utils import bool_flag, timeout, MyTimeoutError
 import math
 import scipy
+from ..model import LinearPointEmbedder, TransformerModel
 
 SPECIAL_WORDS = [
     "<EOS>",
@@ -770,6 +771,32 @@ class EnvDataset(Dataset):
         self.input_length_modulo = input_length_modulo
         self.params = params
         self.tokenizer = tokenizer
+        params.latent_dim = 512
+        self.encoder_y = TransformerModel(
+            params,
+            env.float_id2word,
+            is_encoder=True,
+            with_output=False,
+            use_prior_embeddings=True,
+            positional_embeddings=params.enc_positional_embeddings,
+        )
+        self.embedder = LinearPointEmbedder(params, env)
+        loaded_model = torch.load("/home/xulei/shayan/SR/DDSR/SNIP-Pretrained-Weights/snip-10dmax.pth", weights_only=False)
+        modules = ["encoder_y", "embedder"]
+        for k in modules:
+            if all([k2.startswith("module.") for k2 in loaded_model[k].keys()]):
+                loaded_model[k] = {
+                    k2[len("module.") :]: v2 for k2, v2 in loaded_model[k].items()
+                }
+        self.encoder_y.load_state_dict(loaded_model["encoder_y"])
+        self.embedder.load_state_dict(loaded_model["embedder"])
+        for param in self.encoder_y.parameters():
+            param.requires_grad = False
+
+        for param in self.embedder.parameters():
+            param.requires_grad = False
+
+        
         self.errors = defaultdict(int)
 
         if "test_env_seed" in args:
@@ -828,7 +855,7 @@ class EnvDataset(Dataset):
         # (default of 10000 if no file provided)
         if self.train:
             # self.size = 1 << 60
-            self.size = 20000
+            self.size = 5000
             print("Size of dataloader: ", self.size)
         elif size is None:
             self.size = 10000 if path is None else len(self.data)
@@ -1001,6 +1028,10 @@ class EnvDataset(Dataset):
         # samples["infos"] = info_tensor
         samples['input_ids'] = torch.stack(samples['input_ids'], dim=0)
         samples['attention_mask'] = torch.stack(samples['attention_mask'], dim=0)
+        samples['text_embeddings'] = torch.stack(samples['text_embeddings'], dim=0)
+        samples['text_attention_mask'] = torch.stack(samples['text_attention_mask'], dim=0)
+        # for k, v in samples.items():
+        #     print(f"{k}: {v.shape}")
         # if "input_sequence_length" in samples["infos"]:
         #     del samples["infos"]["input_sequence_length"]
         # errors = copy.deepcopy(self.errors)
@@ -1068,6 +1099,18 @@ class EnvDataset(Dataset):
                           if token == self.tokenizer.eos_token_id else 1 
                           for token in res['input_ids']])
         res["attention_mask"] = attention_mask
+        x_to_fit = sample["x_to_fit"]
+        y_to_fit = sample["y_to_fit"]
+        x1 = []
+        for seq_id in range(len(x_to_fit)):
+            x1.append([x_to_fit[seq_id], y_to_fit[seq_id]])
+        
+        with torch.no_grad():
+            x1, len1 = self.embedder([x1])
+            encoded_y = self.encoder_y("fwd", x=x1, lengths=len1, causal=False)[0]
+        res["text_embeddings"] = encoded_y
+        res["text_attention_mask"] = torch.ones_like(encoded_y)
+        
         # sample["text_embeddings"] = None
         # sample["text_attention_mask"] = None
         

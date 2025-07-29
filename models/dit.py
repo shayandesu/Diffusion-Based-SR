@@ -471,6 +471,9 @@ class DIT(nn.Module, huggingface_hub.PyTorchModelHubMixin):
 
         self.config = config
         self.vocab_size = vocab_size
+        
+        config.model.n_heads = 8
+        config.model.hidden_size = 512
 
         # Standard DiT components
         self.vocab_embed = EmbeddingLayer(config.model.hidden_size, vocab_size)
@@ -478,7 +481,7 @@ class DIT(nn.Module, huggingface_hub.PyTorchModelHubMixin):
         self.rotary_emb = Rotary(config.model.hidden_size // config.model.n_heads)
         
         # Text embedding projection
-        self.text_proj = nn.Linear(text_embed_dim, config.model.hidden_size)  # 768 is BERT hidden size
+        self.text_proj = nn.Linear(text_embed_dim, 512)  # 768 is BERT hidden size
         
         # Position embeddings for input sequence
         self.pos_embed = nn.Parameter(torch.zeros(1, config.model.length, config.model.hidden_size))
@@ -529,11 +532,12 @@ class DIT(nn.Module, huggingface_hub.PyTorchModelHubMixin):
                 device=x.device, 
                 dtype=x.dtype
             )
-            text_attention_mask = torch.ones(
-                (x.shape[0], 1), 
-                device=x.device, 
-                dtype=torch.bool
-            )
+            
+        text_attention_mask = torch.ones(
+            (x.shape[0], 1), 
+            device=x.device, 
+            dtype=torch.bool
+        )
 
         # Get rotary embeddings
         rotary_cos_sin = self.rotary_emb(x)
