@@ -1,0 +1,9 @@
+_target_: models.dit.DIT
+hidden_size: 512  # Increased from 256 for more capacity
+n_heads: 8        # Increased from 6 for more parallel attention
+n_blocks: 24      # Increased from 12 for deeper network
+dropout: 0.2      # Keep dropout for regularization
+cond_dim: 768    # Increased from 768 for richer conditioning
+length: 256       # Keep SMILES sequence length
+scale_by_sigma: True
+text_conditioning: True

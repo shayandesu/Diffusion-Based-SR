@@ -1,12 +1,12 @@
-from MMP.snip.envs.environment import FunctionEnvironment
+from snip.envs.environment import FunctionEnvironment
 from argparse import Namespace
 # from omegaconf import OmegaConf
 import torch
 
 class Tokenizer:
-    def __init__(self, params: Namespace, max_len: int = 70):
+    def __init__(self, params: Namespace, max_len: int = 200):
         self.max_len = max_len
-        self.env = FunctionEnvironment(params)
+        self.env = FunctionEnvironment(params, None)
         self.vocab_size = len(self.env.equation_id2word)
         self.pad_token_id = self.env.equation_word2id["<PAD>"]
         self.eos_token_id = self.env.equation_word2id["<EOS>"]
@@ -31,13 +31,13 @@ class Tokenizer:
         
         return indices
     
-    def __call__(self, xs: str | list[str] | list[list[str]]) -> list[torch.Tensor]:
+    def __call__(self, xs: str | list[str] | list[list[str]]) -> torch.Tensor:
         if isinstance(xs, str):
-            return [self.encode(xs.split(","))]
-        elif isinstance(xs, list[str]):
-            return [self.encode(xs)]
+            return self.encode(xs.split(","))
+        elif isinstance(xs, list):
+            return self.encode(xs)
         
-        return [self.encode(x) for x in xs]
+        return torch.stack([self.encode(x) for x in xs])
     
     
     def __len__(self):
