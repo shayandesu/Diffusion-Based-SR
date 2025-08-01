@@ -430,6 +430,7 @@ class FunctionEnvironment(object):
             tokenizer=self.tokenizer,
             skip=self.params.queue_strategy is not None,
             params=params,
+            size=params.size,
             path=(None if data_path is None else data_path[task][0]),
             **args,
         )
@@ -809,7 +810,7 @@ class EnvDataset(Dataset):
             self.env_info = None
 
         assert task in FunctionEnvironment.TRAINING_TASKS
-        assert size is None or not self.train
+        # assert size is None or not self.train
         assert not params.batch_load or params.reload_size > 0
         # batching
         self.num_workers = params.num_workers
@@ -854,8 +855,7 @@ class EnvDataset(Dataset):
         # dataset size: infinite iterator for train, finite for valid / test
         # (default of 10000 if no file provided)
         if self.train:
-            # self.size = 1 << 60
-            self.size = 5000
+            self.size = size
             print("Size of dataloader: ", self.size)
         elif size is None:
             self.size = 10000 if path is None else len(self.data)

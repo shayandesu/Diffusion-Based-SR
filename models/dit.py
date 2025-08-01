@@ -464,16 +464,13 @@ class DDitFinalLayer(nn.Module):
     return x
 
 class DIT(nn.Module, huggingface_hub.PyTorchModelHubMixin):
-    def __init__(self, config, vocab_size: int, text_embed_dim=768):
+    def __init__(self, config, vocab_size: int, text_embed_dim=512):
         super().__init__()
         if type(config) == dict:
             config = omegaconf.OmegaConf.create(config)
 
         self.config = config
         self.vocab_size = vocab_size
-        
-        config.model.n_heads = 8
-        config.model.hidden_size = 512
 
         # Standard DiT components
         self.vocab_embed = EmbeddingLayer(config.model.hidden_size, vocab_size)
@@ -481,7 +478,8 @@ class DIT(nn.Module, huggingface_hub.PyTorchModelHubMixin):
         self.rotary_emb = Rotary(config.model.hidden_size // config.model.n_heads)
         
         # Text embedding projection
-        self.text_proj = nn.Linear(text_embed_dim, 512)  # 768 is BERT hidden size
+        self.text_proj = nn.Linear(text_embed_dim, 768)  # 768 is BERT hidden size
+        print(f"Hidden Size: {config.model.hidden_size}")
         
         # Position embeddings for input sequence
         self.pos_embed = nn.Parameter(torch.zeros(1, config.model.length, config.model.hidden_size))

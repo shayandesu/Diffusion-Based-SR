@@ -103,12 +103,12 @@ checkpointing:
 model:
   _target_: models.dit.DIT
   hidden_size: 512  # Increased from 256 for more capacity
-  n_heads: 8        # Increased from 6 for more parallel attention
+  n_heads: 16        # Increased from 6 for more parallel attention
   n_blocks: 24      # Increased from 12 for deeper network
-  dropout: 0.2      # Keep dropout for regularization
+  dropout: 0.2      # Keep dropout for regulrization
   cond_dim: 768    # Increased from 768 for richer conditioning
-  length: 256       # Keep SMILES sequence length
+  length: 200       # Keep SMILES sequence length
   scale_by_sigma: True
   text_conditioning: True
-  smiles_length: 256  # Adjust based on your SMILES lengths
+  smiles_length: 200  # Adjust based on your SMILES lengths
   text_length: 512    # Adjust based on your text lengths

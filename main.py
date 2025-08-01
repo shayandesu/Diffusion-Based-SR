@@ -7,6 +7,7 @@ from diffusion import Diffusion
 import omegaconf
 from snip.envs.environment import FunctionEnvironment
 import utils
+import lightning as L
 
 omegaconf.OmegaConf.register_new_resolver('cwd', os.getcwd)
 omegaconf.OmegaConf.register_new_resolver('device_count', torch.cuda.device_count)
@@ -21,7 +22,12 @@ def main(config):
     with open("/home/xulei/shayan/SR/DDSR/hyperparameters/params.pkl", 'rb') as p:
         params = pickle.load(p)
     
-    params.batch_size = config.loader.global_batch_size
+    L.seed_everything(config.seed)
+    params.size = 1000000
+    if config.get('wandb', None) is not None:
+        wandb_logger = L.pytorch.loggers.WandbLogger(
+        config=omegaconf.OmegaConf.to_object(config),
+        ** config.wandb)
         
     if (config.checkpointing.resume_from_ckpt
         and config.checkpointing.resume_ckpt_path is not None
@@ -35,7 +41,6 @@ def main(config):
     model = Diffusion(config, tk)
     env = FunctionEnvironment(params, tk)
     train_dataloader = env.create_train_iterator(params.tasks, None, params)
-    # valid_dataloader = env.create_test_iterator("valid", params.tasks, None, params.batch_size, params, size=1000, input_length_modulo=None)
     valid_dataloader = None
     callbacks = []
     if 'callbacks' in config:
@@ -47,8 +52,8 @@ def main(config):
         default_root_dir=os.getcwd(),
         callbacks=callbacks,
         strategy=hydra.utils.instantiate(config.strategy),
-        logger=None)
-    trainer.fit(model, train_dataloader, valid_dataloader, ckpt_path=ckpt_path)
+        logger=wandb_logger)
+    trainer.fit(model, train_dataloader, valid_dataloader, ckpt_path=None)
     
 
 
