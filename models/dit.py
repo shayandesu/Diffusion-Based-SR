@@ -478,8 +478,7 @@ class DIT(nn.Module, huggingface_hub.PyTorchModelHubMixin):
         self.rotary_emb = Rotary(config.model.hidden_size // config.model.n_heads)
         
         # Text embedding projection
-        self.text_proj = nn.Linear(text_embed_dim, 768)  # 768 is BERT hidden size
-        print(f"Hidden Size: {config.model.hidden_size}")
+        self.text_proj = nn.Linear(text_embed_dim, config.model.hidden_size)
         
         # Position embeddings for input sequence
         self.pos_embed = nn.Parameter(torch.zeros(1, config.model.length, config.model.hidden_size))
