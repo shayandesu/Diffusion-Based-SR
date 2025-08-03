@@ -66,8 +66,8 @@ def main(config):
         params = pickle.load(p)
     
     L.seed_everything(config.seed)
-    params.size = 200
-    params.batch_size = 64
+    params.size = config.size
+    params.batch_size = config.batch_size
     _print_config(config)
     if config.get('wandb', None) is not None:
         wandb_logger = L.pytorch.loggers.WandbLogger(
