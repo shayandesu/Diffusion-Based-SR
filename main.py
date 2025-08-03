@@ -11,6 +11,7 @@ import lightning as L
 import rich.syntax
 import rich.tree
 import fsspec
+from argparse import ArgumentParser
 
 omegaconf.OmegaConf.register_new_resolver('cwd', os.getcwd)
 omegaconf.OmegaConf.register_new_resolver('device_count', torch.cuda.device_count)
@@ -51,6 +52,10 @@ def _print_config(
       '{}/config_tree.txt'.format(
         config.checkpointing.save_dir), 'w') as fp:
       rich.print(tree, file=fp)
+      
+      
+# def _parse_args():
+  
 
 
 @hydra.main(version_base=None, config_path='hyperparameters/configs',
@@ -61,7 +66,7 @@ def main(config):
         params = pickle.load(p)
     
     L.seed_everything(config.seed)
-    params.size = 20000
+    params.size = 200
     params.batch_size = 64
     _print_config(config)
     if config.get('wandb', None) is not None:
@@ -93,7 +98,7 @@ def main(config):
         callbacks=callbacks,
         strategy=hydra.utils.instantiate(config.strategy),
         logger=wandb_logger)
-    trainer.fit(model, train_dataloader, valid_dataloader, ckpt_path="/home/xulei/shayan/SR/DDSR/outputs/openwebtext/2025.08.03/090842/checkpoints/best.ckpt")
+    trainer.fit(model, train_dataloader, valid_dataloader, ckpt_path=None)
     
 
 

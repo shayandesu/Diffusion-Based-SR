@@ -1044,7 +1044,7 @@ class Diffusion(L.LightningModule):
 
     if self.parameterization == 'sedd':
       return dsigma[:, None] * self._score_entropy(
-        model_output, sigma[:, None], xt, x0)
+        model_output, sigma[:, None], xt, x0), model_output
     
     if self.T > 0:
       diffusion_loss = self._d3pm_loss(
@@ -1054,10 +1054,10 @@ class Diffusion(L.LightningModule):
       elif self.parameterization == 'subs':
         reconstruction_loss = 0
       # print({"diffusion_loss": diffusion_loss.item(), "reconstruction_loss": reconstruction_loss.item()})
-      if diffusion_loss.item() > 10:
-        print(f"Large loss detected: {diffusion_loss.item()}")
-      print("T>0", diffusion_loss.item())
-      return reconstruction_loss + diffusion_loss
+      # if diffusion_loss.item() > 10:
+      #   print(f"Large loss detected: {diffusion_loss.item()}")
+      # print("T>0", diffusion_loss.item())
+      return reconstruction_loss + diffusion_loss, model_output
 
     # Create a mask for every element of model_output that is around self.neg_infinity
     neg_infinity_mask = torch.isclose(model_output, torch.tensor(self.neg_infinity, device=model_output.device), atol=1e3)

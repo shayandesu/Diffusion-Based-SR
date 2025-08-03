@@ -1,7 +1,6 @@
 defaults:
   - _self_
   - /callbacks: [checkpoint_every_n_steps, checkpoint_monitor, learning_rate_monitor]
-  - /data: openwebtext
   - /model: small
   - /strategy: ddp
   - /noise: loglinear
@@ -69,7 +68,7 @@ trainer:
   gradient_clip_val: 1.0
   precision: 'bf16'
   num_sanity_val_steps: 2
-  max_steps: 1_000_000
+  max_steps: 100000
   log_every_n_steps: 10
   limit_train_batches: 1.0   # train on full dataset, can be used to toggle quick run
   limit_val_batches: 0.0     # validate on full dataset, can be used to toggle quick run
@@ -84,12 +83,10 @@ wandb:
   id: ${.name}_${seed}
   tags:
     - ${noise.type}
-    - ${data.train}
-    - ${data.valid}
 
 hydra:
   run:
-    dir: ./outputs/${data.train}/${now:%Y.%m.%d}/${now:%H%M%S}
+    dir: ./outputs/${now:%Y.%m.%d}/${now:%H%M%S}
   job:
     chdir: true
 
