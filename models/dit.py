@@ -479,6 +479,7 @@ class DIT(nn.Module, huggingface_hub.PyTorchModelHubMixin):
         
         # Text embedding projection
         self.text_proj = nn.Linear(text_embed_dim, config.model.hidden_size)
+        self.text_conditioning = config.model.text_conditioning
         
         # Position embeddings for input sequence
         self.pos_embed = nn.Parameter(torch.zeros(1, config.model.length, config.model.hidden_size))
@@ -519,7 +520,7 @@ class DIT(nn.Module, huggingface_hub.PyTorchModelHubMixin):
         c = F.silu(self.sigma_map(sigma))
         
         # Process text embeddings if provided
-        if text_embeddings is not None:
+        if text_embeddings is not None and self.text_conditioning:
             # Project text embeddings to model dimension
             text_proj = self.text_proj(text_embeddings)
         else:

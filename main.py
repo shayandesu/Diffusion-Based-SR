@@ -52,10 +52,6 @@ def _print_config(
       '{}/config_tree.txt'.format(
         config.checkpointing.save_dir), 'w') as fp:
       rich.print(tree, file=fp)
-      
-      
-# def _parse_args():
-  
 
 
 @hydra.main(version_base=None, config_path='hyperparameters/configs',

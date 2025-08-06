@@ -1021,22 +1021,10 @@ class EnvDataset(Dataset):
         """
 
         samples = zip_dic(elements)
-        # info_tensor = {
-        #     info_type: torch.LongTensor(samples["infos"][info_type])
-        #     for info_type in samples["infos"].keys()
-        # }
-        # samples["infos"] = info_tensor
         samples['input_ids'] = torch.stack(samples['input_ids'], dim=0)
         samples['attention_mask'] = torch.stack(samples['attention_mask'], dim=0)
         samples['text_embeddings'] = torch.stack(samples['text_embeddings'], dim=0)
         samples['text_attention_mask'] = torch.stack(samples['text_attention_mask'], dim=0)
-        # for k, v in samples.items():
-        #     print(f"{k}: {v.shape}")
-        # if "input_sequence_length" in samples["infos"]:
-        #     del samples["infos"]["input_sequence_length"]
-        # errors = copy.deepcopy(self.errors)
-        # self.errors = defaultdict(int)
-        # return samples, errors
         return samples
 
     def init_rng(self):
@@ -1110,10 +1098,6 @@ class EnvDataset(Dataset):
             encoded_y = self.encoder_y("fwd", x=x1, lengths=len1, causal=False)[0]
         res["text_embeddings"] = encoded_y
         res["text_attention_mask"] = torch.ones_like(encoded_y)
-        
-        # sample["text_embeddings"] = None
-        # sample["text_attention_mask"] = None
-        
         return res
         
         

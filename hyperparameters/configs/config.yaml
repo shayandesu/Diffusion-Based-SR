@@ -16,7 +16,7 @@ subs_masking: False
 
 seed: 1
 batch_size: 64
-size: 10000
+size: 20000
 
 loader:
   global_batch_size: 32
@@ -55,7 +55,7 @@ eval:
   generate_samples: True
 
 optim:
-  weight_decay: 0
+  weight_decay: 0.05
   lr: 3e-4
   beta1: 0.9
   beta2: 0.999
@@ -77,11 +77,11 @@ trainer:
   val_check_interval: 0
 
 wandb:
-  project: smiles-mdlm-valtuning
-  notes: Mulan for text
+  project: ddsr
+  notes: larger_hidden_size
   group: null
   job_type: null
-  name: null
+  name: conditional_${model.hidden_size}_${model.n_blocks}
   id: ${.name}_${seed}
   tags:
     - ${noise.type}
