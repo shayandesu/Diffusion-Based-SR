@@ -70,7 +70,7 @@ trainer:
   gradient_clip_val: 1.0
   precision: 'bf16'
   num_sanity_val_steps: 2
-  max_steps: 100000
+  max_steps: 5000
   log_every_n_steps: 10
   limit_train_batches: 1.0   # train on full dataset, can be used to toggle quick run
   limit_val_batches: 0.0     # validate on full dataset, can be used to toggle quick run
@@ -78,17 +78,17 @@ trainer:
 
 wandb:
   project: ddsr
-  notes: larger_hidden_size
+  notes: Validity/Diversity Test
   group: null
   job_type: null
-  name: conditional_${model.hidden_size}_${model.n_blocks}
+  name: unconditional_${model.hidden_size}_${model.n_blocks}
   id: ${.name}_${seed}
   tags:
     - ${noise.type}
 
 hydra:
   run:
-    dir: ./outputs/${now:%Y.%m.%d}/${now:%H%M%S}
+    dir: ./outputs/${wandb.name}/${now:%Y.%m.%d}/${now:%H%M%S}
   job:
     chdir: true
 

@@ -11,7 +11,6 @@ import lightning as L
 import rich.syntax
 import rich.tree
 import fsspec
-from argparse import ArgumentParser
 
 omegaconf.OmegaConf.register_new_resolver('cwd', os.getcwd)
 omegaconf.OmegaConf.register_new_resolver('device_count', torch.cuda.device_count)
@@ -64,6 +63,9 @@ def main(config):
     L.seed_everything(config.seed)
     params.size = config.size
     params.batch_size = config.batch_size
+    params.conditioning = config.model.text_conditioning
+    print(f"Conditioning: {params.conditioning}")
+    params.latent_dim = 512
     _print_config(config)
     if config.get('wandb', None) is not None:
         wandb_logger = L.pytorch.loggers.WandbLogger(
