@@ -1126,7 +1126,7 @@ class Diffusion(L.LightningModule):
         print(f"High loss detected: {loss.max()}")
 
     return Loss(loss=total_loss,
-                nlls=nlls,
+                nlls=loss,
                 token_mask=attention_mask)
 
   def _score_entropy(self, log_score, sigma, xt, x0):

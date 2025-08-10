@@ -8,52 +8,40 @@ from snip.envs.environment import FunctionEnvironment, EnvDataset
 import torch
 import os
 import numpy as np
+from tqdm import tqdm
 
 omegaconf.OmegaConf.register_new_resolver('cwd', os.getcwd)
 omegaconf.OmegaConf.register_new_resolver('device_count', torch.cuda.device_count)
 omegaconf.OmegaConf.register_new_resolver('eval', eval)
 omegaconf.OmegaConf.register_new_resolver('div_up', lambda x, y: (x + y - 1) // y)
 
-def evaluate(model: Diffusion, env: FunctionEnvironment, ds: EnvDataset, num_trials: int = 10):
-    for i in range(num_trials):
-        org = ds.generate_sample()
-        x_to_fit = org['x_to_fit']
-        y_to_fit = org['y_to_fit']
-        embeds = ds._preprocess_sample(org)['text_embeddings'].unsqueeze(0).to('cuda')
-        
-        model_error = np.inf
-        model_outputs = model.restore_model_and_sample(200, text_embeddings=embeds)
+def validity_evaluator(model: Diffusion, env: FunctionEnvironment, ds: EnvDataset = None, num_trials: int = 100):
+    total_gen = 0
+    valid_gen = 0
+    ratio = 0.0
+    print("Starting Generation")
+    pbar = tqdm(range(num_trials))
+    for i in pbar:
+        model_outputs = model.restore_model_and_sample(200)
+        total_gen += model_outputs.shape[0]
+        if i == 0:
+            print(f"Output Shape: {model_outputs.shape}")
+            print(f"Sample Output: {model_outputs[0]}")
         for out in model_outputs:
             if out is None:
+                print("Wow")
                 continue
             
             idx_to_words = [env.equation_id2word[int(term)] for term in out]
             node = env.equation_encoder.decode(idx_to_words)
-            try:
-                vals = node.val(x_to_fit)
-            except:
-                vals = None
-            
-            if vals is None:
-                continue
-            
-            error = np.log(np.mean((vals - y_to_fit) ** 2))
-            model_error = min(model_error, error)
+            if node is not None:
+                valid_gen +=1
         
-        random_error = None
-        while random_error is None:
-            sample = ds.generate_sample()
-            try:
-                vals = sample['tree'].val(x_to_fit)
-            except:
-                vals = None
-            
-            if vals is None:
-                continue
-            
-            random_error = np.log(np.mean((vals - y_to_fit) ** 2))
+        ratio = valid_gen/total_gen
+        pbar.set_description(f"{valid_gen}/{total_gen} ({ratio:.3f})")
     
-        print(f"Processed sample {i+1}/{num_trials}. Model Error: {model_error:.4f}, Random Error: {random_error:.4f}")
+    print(f"Finished Trials. Valids: {valid_gen}, Total: {total_gen}, Validity Ratio: {ratio:.3f}")
+                
             
 
 @hydra.main(version_base=None, config_path='hyperparameters/configs',
@@ -65,30 +53,41 @@ def main(config):
         params = pickle.load(p)
         
     params.size=1000
+    params.conditioning = config.model.text_conditioning
         
     L.seed_everything(config.seed)
     tk = Tokenizer(params)
-    model = Diffusion.load_from_checkpoint(
-        "/home/xulei/shayan/SR/DDSR/outputs/2025.08.06/113517/checkpoints/best.ckpt",
-        tokenizer=tk,
-        config=config
+    print(f"<EOS>: {tk.eos_token_id} | <PAD>: {tk.pad_token_id}")
+
+    if config.checkpointing.resume_from_ckpt:
+        ckpt = config.checkpointing.resume_ckpt_path
+        model = Diffusion.load_from_checkpoint(
+            ckpt,
+            tokenizer=tk,
+            config=config
         )
+        print(f"Successfully loaded model from {ckpt}")
+    else:
+        model = Diffusion(config, tk).to('cpu')
     
     env = FunctionEnvironment(params, tk)
-    dataset = EnvDataset(
-                env,
-                params.tasks,
-                train=True,
-                tokenizer=env.tokenizer,
-                skip=params.queue_strategy is not None,
-                params=params,
-                path=None,
-                size=1000
-            )
+    dataset = None
+    if config.model.text_conditioning:
+        print("Generating Dataset.")
+        dataset = EnvDataset(
+                    env,
+                    params.tasks,
+                    train=True,
+                    tokenizer=env.tokenizer,
+                    skip=params.queue_strategy is not None,
+                    params=params,
+                    path=None,
+                    size=1000
+                )
 
-    dataset.init_rng()
+        dataset.init_rng()
     
-    evaluate(model, env, dataset)    
+    validity_evaluator(model, env, dataset)    
     
 
 
