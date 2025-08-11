@@ -13,6 +13,9 @@ Run the following command and the pipeline will automatically used the pretraine
 gdown --folder https://drive.google.com/drive/folders/1oGVQPAuTwWQnhX_pxN3OdKDt9-rmCfV3
 ```
 
+## Configurations
+All parameters can be changed at `hyperparameteres/configs/config.yaml`.
+
 ## Run the Training
 
 ### Setup 0. (Unconditional)
