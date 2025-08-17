@@ -3,9 +3,9 @@ type: ddit
 hidden_size: 512
 cond_dim: 128
 length: 1024
-n_blocks: 16
+n_blocks: 4
 n_heads: 8
 scale_by_sigma: True
-dropout: 0.0
+dropout: 0.2
 tie_word_embeddings: False
-text_conditioning: True
+text_conditioning: False

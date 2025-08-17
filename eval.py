@@ -15,7 +15,7 @@ omegaconf.OmegaConf.register_new_resolver('device_count', torch.cuda.device_coun
 omegaconf.OmegaConf.register_new_resolver('eval', eval)
 omegaconf.OmegaConf.register_new_resolver('div_up', lambda x, y: (x + y - 1) // y)
 
-def validity_evaluator(model: Diffusion, env: FunctionEnvironment, ds: EnvDataset = None, num_trials: int = 100):
+def validity_evaluator(model: Diffusion, env: FunctionEnvironment, ds: EnvDataset = None, num_trials: int = 5):
     total_gen = 0
     valid_gen = 0
     ratio = 0.0
@@ -24,18 +24,18 @@ def validity_evaluator(model: Diffusion, env: FunctionEnvironment, ds: EnvDatase
     for i in pbar:
         model_outputs = model.restore_model_and_sample(200)
         total_gen += model_outputs.shape[0]
-        if i == 0:
-            print(f"Output Shape: {model_outputs.shape}")
-            print(f"Sample Output: {model_outputs[0]}")
         for out in model_outputs:
-            if out is None:
-                print("Wow")
-                continue
+            # for tok in out:
+            #     if tok == env.equation_word2id['<PAD>']:
+                    
             
             idx_to_words = [env.equation_id2word[int(term)] for term in out]
             node = env.equation_encoder.decode(idx_to_words)
             if node is not None:
                 valid_gen +=1
+                # print(node.infix())
+                # print(len(node))
+                # input()
         
         ratio = valid_gen/total_gen
         pbar.set_description(f"{valid_gen}/{total_gen} ({ratio:.3f})")
@@ -47,26 +47,27 @@ def validity_evaluator(model: Diffusion, env: FunctionEnvironment, ds: EnvDatase
 @hydra.main(version_base=None, config_path='hyperparameters/configs',
             config_name='config')
 def main(config):
-    config.model.smiles_length=200
     # Load SNIP params
     with open("/home/xulei/shayan/SR/DDSR/hyperparameters/params.pkl", 'rb') as p:
         params = pickle.load(p)
         
     params.size=1000
     params.conditioning = config.model.text_conditioning
+    params.seed=15
         
     L.seed_everything(config.seed)
-    tk = Tokenizer(params)
-    print(f"<EOS>: {tk.eos_token_id} | <PAD>: {tk.pad_token_id}")
+    tk = Tokenizer(params, 128)
+    config.model.smiles_length=tk.max_len
+    # print(f"<EOS>: {tk.eos_token_id} | <PAD>: {tk.pad_token_id}")
 
-    if config.checkpointing.resume_from_ckpt:
+    if config.checkpointing.resume_ckpt_path != "":
         ckpt = config.checkpointing.resume_ckpt_path
         model = Diffusion.load_from_checkpoint(
             ckpt,
             tokenizer=tk,
             config=config
         )
-        print(f"Successfully loaded model from {ckpt}")
+        # print(f"Successfully loaded model from {ckpt}")
     else:
         model = Diffusion(config, tk).to('cpu')
     

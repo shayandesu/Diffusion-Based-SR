@@ -19,7 +19,7 @@ import dataloader
 import models
 import noise_schedule
 import utils
-# from mdlm.valtuning import SMILESValidityLosses
+from valtuning import ValidityRatio, ValidationLoss
 
 LOG2 = math.log(2)
 
@@ -69,6 +69,9 @@ class Loss:
 
 class NLL(torchmetrics.aggregation.MeanMetric):
     pass
+  
+class CrossEntropy(torchmetrics.aggregation.MeanMetric):
+    pass
 
 
 class BPD(NLL):
@@ -95,7 +98,8 @@ class Diffusion(L.LightningModule):
   def __init__(
     self,
     config,
-    tokenizer: transformers.PreTrainedTokenizer):
+    tokenizer: transformers.PreTrainedTokenizer,
+    env):
     super().__init__()
     self.save_hyperparameters()
     self.config = config
@@ -110,6 +114,7 @@ class Diffusion(L.LightningModule):
     # for param in self.bert_model.parameters():
     #     param.requires_grad = False
 
+    self.env = env
     self.tokenizer = tokenizer
     self.vocab_size = self.tokenizer.vocab_size
     # self.vocab_size = self.tokenizer.vocab_size
@@ -500,10 +505,22 @@ class Diffusion(L.LightningModule):
          and not self.parameterization == 'ar'):
       # TODO(justin): implement sampling and kv cache for AR
       samples, text_samples = None, None
+      total_gen = 0
+      valid_gen = 0
       for _ in range(
         self.config.sampling.num_sample_batches):
         samples = self._sample()
         # Decode the samples to be re-tokenized by eval model
+        total_gen += samples.shape[0]
+        for out in samples:
+          idx_to_words = [self.env.equation_id2word[term.item()] for term in out]
+          node = self.env.equation_encoder.decode(idx_to_words)
+          if node is not None:
+              valid_gen +=1
+        
+        # print(f"Ratio: {valid_gen/total_gen:.4f}")
+        ratio = valid_gen/total_gen
+        self.log("val/ratio", ratio, on_step=False, on_epoch=True, prog_bar=True)
         text_samples = self.tokenizer.batch_decode(samples)
         if self.config.eval.compute_generative_perplexity:
           self.compute_generative_perplexity(text_samples)
@@ -665,6 +682,24 @@ class Diffusion(L.LightningModule):
       * x.shape, device=x.device) < move_chance
     xt = torch.where(move_indices, self.mask_index, x)
     return xt
+  
+  def q_xt_one(self, x):
+    """
+    NEW: mask exactly one *previously un-masked* index per sequence.
+    x            … (B, L) current tokens (initially x0)
+    move_chance  … ignored; kept for API compatibility
+    """
+    # Boolean where token is still visible
+    not_masked = (x != self.mask_index)
+
+    # Each row: choose one index among the visibles
+    choice = torch.multinomial(not_masked.float(), 1).squeeze(1)          # (B,)
+
+    # Scatter mask_index at the chosen positions
+    x_next = x.clone()
+    x_next[torch.arange(x.size(0), device=x.device), choice] = self.mask_index
+    return x_next
+
 
   def _sample_prior(self, *batch_dims):
     return self.mask_index * torch.ones(
@@ -774,7 +809,8 @@ class Diffusion(L.LightningModule):
     # Setup sampling
     if num_steps is None:
         num_steps = self.config.sampling.steps
-        
+    # L = self.tokenizer.max_len
+    # num_steps = L
     x = self._sample_prior(
         batch_size_per_gpu,
         self.config.model.smiles_length
@@ -782,6 +818,8 @@ class Diffusion(L.LightningModule):
     
     timesteps = torch.linspace(1, eps, num_steps + 1, device=self.device)
     dt = (1 - eps) / num_steps
+    # timesteps = torch.linspace(1, eps, L + 1, device=self.device)
+    # dt = 1.0 / L
     p_x0_cache = None
 
     for i in range(num_steps):
@@ -847,8 +885,8 @@ class Diffusion(L.LightningModule):
       self.ema.restore(itertools.chain(
         self.backbone.parameters(),
         self.noise.parameters()))
-    # self.backbone.train()
-    # self.noise.train()
+    self.backbone.train()
+    self.noise.train()
     return samples
 
   def get_score(self, x, sigma, text_embeddings=None, text_attention_mask=None):
@@ -1034,6 +1072,7 @@ class Diffusion(L.LightningModule):
         move_chance = 1 - torch.exp(-sigma[:, None])
 
     xt = self.q_xt(x0, move_chance)
+    # xt = self.q_xt_one(x0)
     model_output = self.forward(
         xt, 
         unet_conditioning,
@@ -1071,9 +1110,14 @@ class Diffusion(L.LightningModule):
       dim=-1,
       index=x0[:, :, None]).squeeze(-1)
     
+    # logits_flat = model_output.view(-1, model_output.size(-1))
+    # targets_flat = x0.view(-1)
+    # ce_loss = F.nll_loss(logits_flat, targets_flat, reduction='none')
+    # ce_loss = ce_loss.view(x0.shape)
+    
     if self.change_of_variables or self.importance_sampling:
-      return log_p_theta * torch.log1p(
-        - torch.exp(- self.noise.sigma_min))
+      return (log_p_theta * torch.log1p(
+        - torch.exp(- self.noise.sigma_min)), model_output)
 
 
     large_log_p_theta_mask = torch.abs(log_p_theta) > 1000
@@ -1086,8 +1130,13 @@ class Diffusion(L.LightningModule):
 
 
     smoothing_factor = 1e-7
+    # weighting = dsigma / (torch.expm1(sigma) + smoothing_factor)
+    # nll_loss = -log_p_theta * weighting[:, None]
+    # ce_loss_weighted = ce_loss * weighting[:, None]
+    
     return (- log_p_theta * (
       dsigma / (torch.expm1(sigma) + smoothing_factor))[:, None], model_output)
+    # return nll_loss, ce_loss_weighted, model_output
 
   def _loss(self, x0, attention_mask, text_embeddings=None, text_attention_mask=None):
     # print('initial attention_mask shape:', attention_mask.shape)
@@ -1115,15 +1164,15 @@ class Diffusion(L.LightningModule):
     nlls = loss * attention_mask
     count = (attention_mask != 0).sum()
 
-    # valtuning_loss = SMILESValidityLosses()
-    # total_val_loss, _ = valtuning_loss.combined_loss(model_output)
+    # valtuning_loss = ValidationLoss(self.env.equation_word2id)
+    # total_val_loss = valtuning_loss.loss(model_output)
 
     batch_nll = nlls.sum()
     token_nll = batch_nll / count
     total_loss = token_nll
 
-    if token_nll > 10:
-        print(f"High loss detected: {loss.max()}")
+    # if token_nll > 10:
+    #     print(f"High loss detected: {nll_loss.max()}")
 
     return Loss(loss=total_loss,
                 nlls=loss,
